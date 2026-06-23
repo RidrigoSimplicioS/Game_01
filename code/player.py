@@ -1,214 +1,100 @@
 import pygame
-import random
-import os
-
 from config import *
+from entities.bullet import Bullet
 
-from entities.player import Player
-from entities.enemy import Enemy
 
-from systems.assets import (
-    load_image,
-    load_sound,
-    SOUND_DIR
-)
+class Player(pygame.sprite.Sprite):
 
-from systems.phase_manager import PhaseManager
+    def __init__(self, bullet_group, all_sprites, shoot_sound):
 
-class Game:
+        super().__init__()
 
-    def __init__(self, screen):
+        self.image = pygame.Surface((60, 60))
+        self.image.fill((0, 120, 255))
 
-        self.screen = screen
-        self.clock = pygame.time.Clock()
+        self.rect = self.image.get_rect(center=(100, HEIGHT // 2))
 
-        self.running = True
-        self.menu = True
+        self.bullets = bullet_group
+        self.all_sprites = all_sprites
+        self.shoot_sound = shoot_sound
 
-        self.score = 0
+        self.lives = MAX_LIVES
 
-        self.phase_manager = PhaseManager()
+        # POWER UPS
+        self.double_shot = False
+        self.shield = False
 
-        self.font = pygame.font.SysFont(
-            "Arial",
-            30
-        )
+        self.double_timer = 0
+        self.shield_timer = 0
 
-        self.all_sprites = pygame.sprite.Group()
-        self.enemies = pygame.sprite.Group()
-        self.bullets = pygame.sprite.Group()
+        # invencibilidade
+        self.last_hit = 0
+        self.invincible_time = 1500
 
-        self.shoot_sound = load_sound("shoot.wav")
-        self.hit_sound = load_sound("hit.wav")
+    def shoot(self):
 
-        self.player = Player(
-            self.bullets,
-            self.all_sprites,
-            self.shoot_sound
-        )
+        if self.double_shot:
 
-        self.all_sprites.add(self.player)
+            b1 = Bullet(self.rect.right, self.rect.centery - 10)
+            b2 = Bullet(self.rect.right, self.rect.centery + 10)
 
-        self.menu_bg = load_image(
-            "menu_background.png"
-        )
+            self.bullets.add(b1, b2)
+            self.all_sprites.add(b1, b2)
 
-        self.bg_y = 0
+        else:
 
-    def start_phase_music(self):
+            b = Bullet(self.rect.right, self.rect.centery)
 
-        phase = self.phase_manager.current_phase
+            self.bullets.add(b)
+            self.all_sprites.add(b)
 
-        pygame.mixer.music.load(
-            os.path.join(
-                SOUND_DIR,
-                f"bgm_fase{phase}.mp3"
-            )
-        )
+        self.shoot_sound.play()
 
-        pygame.mixer.music.play(-1)
+    def take_damage(self):
 
-    def draw_hud(self):
+        if self.shield:
+            return
 
-        score = self.font.render(
-            f"Pontos: {self.score}",
-            True,
-            WHITE
-        )
+        now = pygame.time.get_ticks()
 
-        lives = self.font.render(
-            f"Vidas: {self.player.lives}",
-            True,
-            WHITE
-        )
+        if now - self.last_hit > self.invincible_time:
+            self.lives -= 1
+            self.last_hit = now
 
-        timer = self.font.render(
-            f"Tempo: {self.phase_manager.remaining_time()}",
-            True,
-            WHITE
-        )
+    def apply_powerup(self, power_type):
 
-        self.screen.blit(score,(20,20))
-        self.screen.blit(lives,(20,60))
-        self.screen.blit(timer,(20,100))
+        now = pygame.time.get_ticks()
 
-    def draw_menu(self):
+        if power_type == "life":
+            self.lives = min(MAX_LIVES, self.lives + 1)
 
-        menu_bg = pygame.transform.scale(
-            self.menu_bg,
-            (WIDTH, HEIGHT)
-        )
+        elif power_type == "double":
+            self.double_shot = True
+            self.double_timer = now
 
-        title = self.font.render(
-            "COMBAT GALAXY",
-            True,
-            WHITE
-        )
+        elif power_type == "shield":
+            self.shield = True
+            self.shield_timer = now
 
-        self.screen.blit(
-            title,
-            (350,200)
-        )
+    def update(self):
 
-        if pygame.time.get_ticks() % 1000 < 500:
+        keys = pygame.key.get_pressed()
 
-            start = self.font.render(
-                "Digite ENTER para começar",
-                True,
-                GREEN
-            )
+        if keys[pygame.K_UP]:
+            self.rect.y -= PLAYER_SPEED
+        if keys[pygame.K_DOWN]:
+            self.rect.y += PLAYER_SPEED
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_SPEED
 
-            self.screen.blit(
-                start,
-                (300,600)
-            )
+        self.rect.clamp_ip(pygame.Rect(0, 0, WIDTH, HEIGHT))
 
-    def run(self):
+        now = pygame.time.get_ticks()
 
-        pygame.mixer.music.load(
-            os.path.join(
-                SOUND_DIR,
-                "background.mp3"
-            )
-        )
+        if self.double_shot and now - self.double_timer > 7000:
+            self.double_shot = False
 
-        pygame.mixer.music.play(-1)
-
-        enemy_event = pygame.USEREVENT + 1
-
-        pygame.time.set_timer(
-            enemy_event,
-            1000
-        )
-
-        while self.running:
-
-            self.clock.tick(FPS)
-
-            for event in pygame.event.get():
-
-                if event.type == pygame.QUIT:
-                    self.running = False
-
-                if self.menu:
-
-                    if (
-                        event.type == pygame.KEYDOWN
-                        and event.key == pygame.K_RETURN
-                    ):
-                        self.menu = False
-
-                        pygame.mixer.music.stop()
-                        self.start_phase_music()
-
-                else:
-
-                    if (
-                        event.type == pygame.KEYDOWN
-                        and event.key == pygame.K_SPACE
-                    ):
-                        self.player.shoot()
-
-                    if event.type == enemy_event:
-                        enemy = Enemy()
-                        self.enemies.add(enemy)
-                        self.all_sprites.add(enemy)
-
-            if self.menu:
-
-                self.draw_menu()
-
-            else:
-
-                self.all_sprites.update()
-
-                hits = pygame.sprite.groupcollide(
-                    self.bullets,
-                    self.enemies,
-                    True,
-                    True
-                )
-
-                if hits:
-                    self.hit_sound.play()
-                    self.score += 10
-
-                if self.phase_manager.remaining_time() == 0:
-
-                    self.phase_manager.next_phase()
-
-                    if self.phase_manager.is_finished():
-                        self.running = False
-
-                    else:
-                        self.start_phase_music()
-
-                self.screen.fill(BLACK)
-
-                self.all_sprites.draw(
-                    self.screen
-                )
-
-                self.draw_hud()
-
-            pygame.display.flip()
+        if self.shield and now - self.shield_timer > 7000:
+            self.shield = False

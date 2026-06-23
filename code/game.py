@@ -5,13 +5,10 @@ from config import *
 
 from entities.player import Player
 from entities.enemy import Enemy
+from entities.explosion import Explosion
+from entities.powerup import PowerUp
 
-from systems.assets import (
-    load_image,
-    load_sound,
-    SOUND_DIR
-)
-
+from systems.assets import load_image, load_sound, SOUND_DIR
 from systems.phase_manager import PhaseManager
 
 
@@ -21,6 +18,7 @@ class Game:
 
         self.screen = screen
         self.clock = pygame.time.Clock()
+
         self.running = True
         self.menu = True
 
@@ -30,16 +28,18 @@ class Game:
 
         self.font = pygame.font.SysFont("Arial", 32)
 
-        # Groups
+        # GRUPOS
         self.all_sprites = pygame.sprite.Group()
         self.enemies = pygame.sprite.Group()
         self.bullets = pygame.sprite.Group()
+        self.effects = pygame.sprite.Group()
+        self.powerups = pygame.sprite.Group()
 
-        # Sounds
+        # SONS
         self.shoot_sound = load_sound("shoot.wav")
         self.hit_sound = load_sound("hit.wav")
 
-        # Player
+        # PLAYER
         self.player = Player(
             self.bullets,
             self.all_sprites,
@@ -48,13 +48,13 @@ class Game:
 
         self.all_sprites.add(self.player)
 
-        # Menu background
+        # MENU BACKGROUND
         self.menu_bg = pygame.transform.smoothscale(
             load_image("menu_background.png"),
             (WIDTH, HEIGHT)
         )
 
-        # Phase backgrounds
+        # BACKGROUNDS
         self.backgrounds = {
             1: pygame.transform.smoothscale(load_image("background1.png"), (WIDTH, HEIGHT)),
             2: pygame.transform.smoothscale(load_image("background2.png"), (WIDTH, HEIGHT)),
@@ -63,6 +63,35 @@ class Game:
 
         self.bg_x = 0
         self.scroll_speed = 2
+
+
+    # =========================
+    # RESET TOTAL
+    # =========================
+    def reset_game(self):
+
+        self.score = 0
+        self.phase_manager = PhaseManager()
+        self.bg_x = 0
+
+        self.all_sprites.empty()
+        self.enemies.empty()
+        self.bullets.empty()
+        self.effects.empty()
+        self.powerups.empty()
+
+        self.player = Player(
+            self.bullets,
+            self.all_sprites,
+            self.shoot_sound
+        )
+
+        self.all_sprites.add(self.player)
+
+        pygame.mixer.music.load(
+            os.path.join(SOUND_DIR, "background.mp3")
+        )
+        pygame.mixer.music.play(-1)
 
     # =========================
     # GAME OVER
@@ -84,10 +113,10 @@ class Game:
         )
 
         pygame.display.flip()
-        pygame.time.delay(3000)
+        pygame.time.delay(2000)
 
     # =========================
-    # MUSIC
+    # MUSICA FASE
     # =========================
     def start_phase_music(self):
 
@@ -96,11 +125,10 @@ class Game:
         pygame.mixer.music.load(
             os.path.join(SOUND_DIR, f"bgm_fase{phase}.mp3")
         )
-
         pygame.mixer.music.play(-1)
 
     # =========================
-    # BACKGROUND (SCROLL)
+    # BACKGROUND
     # =========================
     def draw_background(self):
 
@@ -119,27 +147,9 @@ class Game:
     # =========================
     def draw_hud(self):
 
-        score_text = self.font.render(
-            f"Pontos: {self.score}",
-            True,
-            WHITE
-        )
-
-        lives_text = self.font.render(
-            f"Vidas: {self.player.lives}",
-            True,
-            WHITE
-        )
-
-        timer_text = self.font.render(
-            f"Tempo: {self.phase_manager.remaining_time()}",
-            True,
-            WHITE
-        )
-
-        self.screen.blit(score_text, (20, 20))
-        self.screen.blit(lives_text, (20, 60))
-        self.screen.blit(timer_text, (20, 100))
+        self.screen.blit(self.font.render(f"Pontos: {self.score}", True, WHITE), (20, 20))
+        self.screen.blit(self.font.render(f"Vidas: {self.player.lives}", True, WHITE), (20, 60))
+        self.screen.blit(self.font.render(f"Tempo: {self.phase_manager.remaining_time()}", True, WHITE), (20, 100))
 
     # =========================
     # MENU
@@ -148,28 +158,42 @@ class Game:
 
         self.screen.blit(self.menu_bg, (0, 0))
 
-        title = self.font.render("COMBAT GALAXY", True, WHITE)
+        title_font = pygame.font.SysFont("Arial", 70, bold=True)
+
+        title = title_font.render(
+            "COMBAT GALAXY",
+            True,
+            (0, 170, 255)
+        )
 
         self.screen.blit(
             title,
-            (WIDTH // 2 - title.get_width() // 2, 150)
+            (WIDTH // 2 - title.get_width() // 2, 120)
         )
 
-        if pygame.time.get_ticks() % 1000 < 500:
+        button_font = pygame.font.SysFont("Arial", 28, bold=True)
 
-            start = self.font.render(
-                "Pressione ENTER para começar",
-                True,
-                GREEN
-            )
+        button_text = button_font.render(
+            "PRESSIONE ENTER PARA COMEÇAR",
+            True,
+            WHITE
+        )
 
-            self.screen.blit(
-                start,
-                (WIDTH // 2 - start.get_width() // 2, HEIGHT - 100)
+        rect = pygame.Rect(WIDTH // 2 - 230, HEIGHT - 140, 460, 60)
+
+        pygame.draw.rect(self.screen, (200, 0, 0), rect, border_radius=12)
+        pygame.draw.rect(self.screen, WHITE, rect, 2, border_radius=12)
+
+        self.screen.blit(
+            button_text,
+            (
+                rect.centerx - button_text.get_width() // 2,
+                rect.centery - button_text.get_height() // 2
             )
+        )
 
     # =========================
-    # MAIN LOOP
+    # LOOP PRINCIPAL
     # =========================
     def run(self):
 
@@ -181,19 +205,21 @@ class Game:
         enemy_event = pygame.USEREVENT + 1
         pygame.time.set_timer(enemy_event, 1200)
 
+        power_event = pygame.USEREVENT + 2
+        pygame.time.set_timer(power_event, 8000)
+
         while self.running:
 
             self.clock.tick(FPS)
 
-            # =========================
-            # EVENTS
-            # =========================
             for event in pygame.event.get():
 
                 if event.type == pygame.QUIT:
                     self.running = False
 
+                # =========================
                 # MENU
+                # =========================
                 if self.menu:
 
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
@@ -201,7 +227,9 @@ class Game:
                         pygame.mixer.music.stop()
                         self.start_phase_music()
 
+                # =========================
                 # GAME
+                # =========================
                 else:
 
                     if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
@@ -212,14 +240,20 @@ class Game:
                         self.enemies.add(enemy)
                         self.all_sprites.add(enemy)
 
+                    if event.type == power_event:
+                        power = PowerUp()
+                        self.powerups.add(power)
+                        self.all_sprites.add(power)
+
             # =========================
-            # UPDATE
+            # UPDATE (SEGURANÇA TOTAL)
             # =========================
             if not self.menu:
 
                 self.all_sprites.update()
+                self.effects.update()
 
-                # COLISÃO TIRO x INIMIGO
+                # TIROS vs INIMIGOS
                 hits = pygame.sprite.groupcollide(
                     self.bullets,
                     self.enemies,
@@ -228,10 +262,22 @@ class Game:
                 )
 
                 if hits:
+
                     self.hit_sound.play()
                     self.score += len(hits) * 10
 
-                # COLISÃO JOGADOR x INIMIGO
+                    for bullet in hits:
+                        for enemy in hits[bullet]:
+
+                            explosion = Explosion(
+                                enemy.rect.centerx,
+                                enemy.rect.centery
+                            )
+
+                            self.effects.add(explosion)
+                            self.all_sprites.add(explosion)
+
+                # PLAYER vs INIMIGOS
                 player_hits = pygame.sprite.spritecollide(
                     self.player,
                     self.enemies,
@@ -243,17 +289,39 @@ class Game:
                     self.player.take_damage()
                     self.hit_sound.play()
 
+                    explosion = Explosion(
+                        self.player.rect.centerx,
+                        self.player.rect.centery
+                    )
+
+                    self.effects.add(explosion)
+                    self.all_sprites.add(explosion)
+
                     if self.player.lives <= 0:
                         self.show_game_over()
-                        self.running = False
+                        self.reset_game()
+                        self.menu = True
 
-                # FASE
-                if self.phase_manager.remaining_time() == 0:
+                # POWERUPS
+                power_hits = pygame.sprite.spritecollide(
+                    self.player,
+                    self.powerups,
+                    True
+                )
+
+                for power in power_hits:
+                    self.player.apply_powerup(power.type)
+
+                # =========================
+                # FASE (CORRIGIDA)
+                # =========================
+                if self.phase_manager.time_up():
 
                     self.phase_manager.next_phase()
 
                     if self.phase_manager.is_finished():
-                        self.running = False
+                        self.reset_game()
+                        self.menu = True
                     else:
                         self.start_phase_music()
 
@@ -264,10 +332,10 @@ class Game:
 
             if self.menu:
                 self.draw_menu()
-
             else:
                 self.draw_background()
                 self.all_sprites.draw(self.screen)
+                self.effects.draw(self.screen)
                 self.draw_hud()
 
             pygame.display.flip()
