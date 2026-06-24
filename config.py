@@ -23,7 +23,7 @@ BULLET_SIZE = (18, 6)
 # =========================
 # ENEMIES (BALANCEADO)
 # =========================
-ENEMY_SPEED = 4
+ENEMY_SPEED = 2
 
 ENEMY_BLUE_SIZE = (50, 50)
 ENEMY_GREEN_SIZE = (60, 60)

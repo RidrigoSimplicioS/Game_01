@@ -23,9 +23,9 @@ class Enemy(pygame.sprite.Sprite):
         self.image = load_image_ratio(sprite_file, sprite_size)
         self.rect = self.image.get_rect()
 
-        # =========================
+
         # SPAWN SEGURO (CORRIGIDO)
-        # =========================
+
         self.rect.x = WIDTH + random.randint(10, 100)
 
         self.rect.y = random.randint(
