@@ -33,6 +33,8 @@ class Game:
 
         self.font = pygame.font.SysFont("Arial", 32)
         self.small_font = pygame.font.SysFont("Arial", 20, bold=True)
+        # Nova fonte menor exclusiva para o manual de instruções do cantinho
+        self.manual_font = pygame.font.SysFont("Arial", 16, bold=True)
 
         # CONFIGURAÇÃO DE EVENTOS CUSTOMIZADOS
         self.enemy_event = pygame.USEREVENT + 1
@@ -130,6 +132,27 @@ class Game:
         pygame.display.flip()
         pygame.time.delay(3500)
 
+    def show_victory(self):
+        """Tela exibida quando o jogador alcança a condição de vitória."""
+        self.screen.fill(BLACK)
+
+        if self.score > self.high_score:
+            self.high_score = self.score
+
+        font_title = pygame.font.SysFont("Arial", 80, bold=True)
+        font_score = pygame.font.SysFont("Arial", 36)
+
+        text_victory = font_title.render("VITÓRIA!", True, (0, 255, 100))
+        text_current_score = font_score.render(f"Sua Pontuação: {self.score}", True, WHITE)
+        text_high_score = font_score.render(f"Pontuação Máxima: {self.high_score}", True, (255, 215, 0))
+
+        self.screen.blit(text_victory, (WIDTH // 2 - text_victory.get_width() // 2, HEIGHT // 2 - 100))
+        self.screen.blit(text_current_score, (WIDTH // 2 - text_current_score.get_width() // 2, HEIGHT // 2 + 20))
+        self.screen.blit(text_high_score, (WIDTH // 2 - text_high_score.get_width() // 2, HEIGHT // 2 + 80))
+
+        pygame.display.flip()
+        pygame.time.delay(3500)
+
     def start_phase_music(self):
         phase = self.phase_manager.current_phase
         music_index = ((phase - 1) % 3) + 1
@@ -182,6 +205,22 @@ class Game:
         hs_text = hs_font.render(f"HIGH SCORE: {self.high_score}", True, (50, 50, 50))
         self.screen.blit(hs_text, (WIDTH // 2 - hs_text.get_width() // 2, 190))
 
+        # ─── MANUAL ATUALIZADO: COR PRETA E MENOR TAMANHO ───
+        linhas_manual = [
+            "COMANDOS:",
+            "• Clique nos botões para a opção desejada",
+            "• Mover nave: SETAS do teclado",
+            "• Combate: ESPAÇO para atirar",
+            "• Vitória: Alcance 1000 pontos!"
+        ]
+
+        y_manual = HEIGHT - 110  # Ajustado sutilmente para acomodar a fonte menor (tamanho 16)
+        for linha in linhas_manual:
+            # Cor alterada permanentemente para Preto (0, 0, 0)
+            texto_manual = self.manual_font.render(linha, True, (0, 0, 0))
+            self.screen.blit(texto_manual, (20, y_manual))
+            y_manual += 20  # Espaçamento menor entre linhas para reduzir o tamanho total do campo
+
         # Pega a posição atual do mouse
         mouse_pos = pygame.mouse.get_pos()
 
@@ -193,11 +232,10 @@ class Game:
             current_play_rect = self.play_button_rect.inflate(20, 10)
             button_font_play = pygame.font.SysFont("Arial", 32, bold=True)
         else:
-            play_color = (0, 180, 0)    # Verde padrão
+            play_color = (0, 180, 0)  # Verde padrão
             current_play_rect = self.play_button_rect
             button_font_play = pygame.font.SysFont("Arial", 28, bold=True)
 
-        # 🔥 CORRIGIDO: Agora usa button_font_play em vez de button_font
         play_text = button_font_play.render(" PLAY ", True, WHITE)
         pygame.draw.rect(self.screen, play_color, current_play_rect, border_radius=40)
         pygame.draw.rect(self.screen, WHITE, current_play_rect, 2, border_radius=40)
@@ -217,11 +255,10 @@ class Game:
             current_exit_rect = self.exit_button_rect.inflate(20, 10)
             button_font_exit = pygame.font.SysFont("Arial", 32, bold=True)
         else:
-            exit_color = (200, 0, 0)    # Vermelho padrão
+            exit_color = (200, 0, 0)  # Vermelho padrão
             current_exit_rect = self.exit_button_rect
             button_font_exit = pygame.font.SysFont("Arial", 28, bold=True)
 
-        # Aqui já estava correto (button_font_exit)
         exit_text = button_font_exit.render(" EXIT ", True, WHITE)
         pygame.draw.rect(self.screen, exit_color, current_exit_rect, border_radius=40)
         pygame.draw.rect(self.screen, WHITE, current_exit_rect, 2, border_radius=40)
@@ -232,6 +269,7 @@ class Game:
                 current_exit_rect.centery - exit_text.get_height() // 2
             )
         )
+
     def run(self):
         pygame.mixer.music.load(os.path.join(SOUND_DIR, "background.mp3"))
         pygame.mixer.music.play(-1)
@@ -326,6 +364,12 @@ class Game:
                 power_hits = pygame.sprite.spritecollide(self.player, self.powerups, True)
                 for power in power_hits:
                     self.player.apply_powerup(power.type)
+
+                # ─── CONDIÇÃO DE VITÓRIA (1000 pontos) ───
+                if self.score >= 1000:
+                    self.show_victory()
+                    self.reset_game()
+                    self.menu = True
 
                 if self.phase_manager.time_up():
                     self.phase_manager.next_phase()
